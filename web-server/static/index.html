@@ -13,6 +13,9 @@
             --background-color: #f5f5f5;
             --container-bg: #ffffff;
             --border-color: #e0e0e0;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --error-color: #f44336;
         }
 
         /* Dark mode if preferred */
@@ -96,6 +99,27 @@
             color: var(--primary-color);
         }
 
+        .error-box {
+            color: var(--error-color);
+            background-color: rgba(244, 67, 54, 0.1);
+            border-left: 4px solid var(--error-color);
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .debug-box {
+            background-color: rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 0.9em;
+            max-height: 200px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+
         footer {
             margin-top: 30px;
             text-align: center;
@@ -111,6 +135,139 @@
 
         footer a:hover {
             text-decoration: underline;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: var(--secondary-color);
+        }
+
+        /* Chat UI Styles */
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab.active {
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 15px 0;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .status {
+            background-color: rgba(0, 0, 0, 0.05);
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+
+        .status.connected {
+            background-color: rgba(76, 175, 80, 0.1);
+            color: var(--success-color);
+        }
+
+        .status.connecting {
+            background-color: rgba(255, 152, 0, 0.1);
+            color: var(--warning-color);
+        }
+
+        .status.error {
+            background-color: rgba(244, 67, 54, 0.1);
+            color: var(--error-color);
+        }
+
+        .messages {
+            height: 300px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--container-bg);
+            color: var(--text-color);
+        }
+
+        .input-area button {
+            padding: 10px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .input-area button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
+            position: relative;
+            clear: both;
+        }
+
+        .message.sent {
+            background-color: var(--primary-color);
+            color: white;
+            float: right;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.received {
+            background-color: rgba(0, 0, 0, 0.05);
+            float: left;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message .time {
+            font-size: 0.7em;
+            opacity: 0.7;
+            margin-top: 5px;
+            text-align: right;
         }
     </style>
 </head>
@@ -128,6 +285,15 @@
             <div class="loading">
                 <div class="loading-spinner"></div>
                 <p>Loading WebAssembly chat application...</p>
+            </div>
+        </div>
+        
+        <div id="debug-container" style="display: none;">
+            <h3>Debug Information</h3>
+            <div class="debug-box" id="debug-log"></div>
+            <div style="margin-top: 10px;">
+                <button id="check-files-btn">Check Files</button>
+                <button id="reload-btn">Reload App</button>
             </div>
         </div>
         
@@ -151,23 +317,65 @@
         // Update server name
         document.getElementById('server-name').textContent = window.location.hostname;
         
+        // Debug logging
+        const debugLog = document.getElementById('debug-log');
+        function log(message) {
+            console.log(message);
+            if (debugLog) {
+                debugLog.textContent += message + '\n';
+                debugLog.scrollTop = debugLog.scrollHeight;
+            }
+        }
+        
+        // Check file availability
+        async function checkFiles() {
+            const files = [
+                '/assets/p2p_chat_wasm.js',
+                '/assets/p2p_chat_wasm_bg.wasm'
+            ];
+            
+            log('Checking file availability:');
+            
+            for (const file of files) {
+                try {
+                    const response = await fetch(file, { method: 'HEAD' });
+                    if (response.ok) {
+                        const size = response.headers.get('content-length') || 'unknown size';
+                        log(`✅ ${file} (${size} bytes)`);
+                    } else {
+                        log(`❌ ${file} (${response.status}: ${response.statusText})`);
+                    }
+                } catch (e) {
+                    log(`❌ ${file} (${e.message})`);
+                }
+            }
+        }
+        
         // Function to load the WASM module
         async function loadWasmChat() {
             try {
+                log('Starting WASM module loading...');
+                
                 // Import the WASM module
-                const { default: init, P2PChat, fetch_turn_config } = await import('/assets/p2p_chat_wasm.js');
+                log('Importing module from /assets/p2p_chat_wasm.js');
+                const wasmModule = await import('/assets/p2p_chat_wasm.js');
+                log('Module imported successfully');
+                
+                const { default: init, P2PChat, fetch_turn_config } = wasmModule;
                 
                 // Initialize the WASM module
+                log('Initializing WASM module...');
                 await init();
-                console.log("WASM module initialized");
+                log('WASM module initialized successfully');
                 
                 // Fetch TURN configuration from the server
                 let turnConfig = null;
                 try {
+                    log('Fetching TURN config...');
                     turnConfig = await fetch_turn_config();
-                    console.log("TURN config successfully fetched");
+                    log('TURN config successfully fetched');
                 } catch (e) {
-                    console.warn("Could not fetch TURN config:", e);
+                    log(`Warning: Could not fetch TURN config: ${e.message}`);
                 }
                 
                 // Remove loading indicator
@@ -176,54 +384,86 @@
                 // Create main UI elements
                 const appContainer = document.getElementById('app-container');
                 appContainer.innerHTML = `
-                    <div class="tabs">
-                        <div class="tab active" id="tab-chat">Chat</div>
-                        <div class="tab" id="tab-connect">Connect</div>
-                        <div class="tab" id="tab-debug">Debug</div>
-                    </div>
-                    
-                    <div class="tab-content active" id="content-chat">
-                        <div class="status" id="connection-status">Initialized, not connected</div>
-                        <div class="messages" id="messages"></div>
-                        <div class="input-area">
-                            <input type="text" id="message-input" placeholder="Type your message..." disabled>
-                            <button id="send-button" disabled>Send</button>
+                    <div id="register-container">
+                        <div class="register-form">
+                            <h3>Enter your name to join the chat</h3>
+                            <input type="text" id="display-name-input" placeholder="Your display name">
+                            <button id="register-btn">Join Chat</button>
                         </div>
                     </div>
-                    
-                    <div class="tab-content" id="content-connect">
-                        <!-- Connection UI will be added here -->
-                    </div>
-                    
-                    <div class="tab-content" id="content-debug">
-                        <!-- Debug UI will be added here -->
+
+                    <div id="chat-container" style="display: none;">
+                        <div class="tabs">
+                            <div class="tab active" id="tab-chat">Chat</div>
+                            <div class="tab" id="tab-connect">Connect</div>
+                            <div class="tab" id="tab-debug">Debug</div>
+                        </div>
+                        
+                        <div class="tab-content active" id="content-chat">
+                            <div class="status" id="connection-status">Initialized, not connected</div>
+                            <div class="messages" id="messages"></div>
+                            <div class="input-area">
+                                <input type="text" id="message-input" placeholder="Type your message..." disabled>
+                                <button id="send-button" disabled>Send</button>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-content" id="content-connect">
+                            <div class="status" id="user-status">Connected as: Not registered</div>
+                            <h3>Available Users</h3>
+                            <div class="user-list" id="user-list">
+                                <div class="user-item">No users available</div>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-content" id="content-debug">
+                            <div class="debug-item">
+                                <h4>Debug Info</h4>
+                                <div class="debug-info" id="debug-info">
+                                    WebAssembly loaded successfully
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 `;
                 
-                // Initialize chat with the TURN config
-                const chat = new P2PChat(turnConfig);
-                window.chatInstance = chat;
+                log('UI created successfully');
                 
-                // Set up the rest of the UI and handlers
-                // This would be a lot more code to initialize all the UI elements and event handlers
-                // For brevity, we're not including the full initialization here
+                // Initialize the rest of the application
+                // ...
                 
-                console.log("Chat application loaded successfully");
+                log('Application initialized successfully');
             } catch (error) {
                 console.error("Failed to load WASM chat:", error);
+                log(`Error: ${error.message}`);
+                
+                // Show debug container
+                document.getElementById('debug-container').style.display = 'block';
+                
+                // Remove loading indicator and show error
                 const appContainer = document.getElementById('app-container');
                 appContainer.innerHTML = `
-                    <div style="color: #e74c3c; text-align: center; padding: 20px;">
+                    <div class="error-box">
                         <h3>Error Loading Chat Application</h3>
                         <p>${error.message || "An unknown error occurred"}</p>
                         <p>Please try refreshing the page or check if your browser supports WebAssembly.</p>
                     </div>
                 `;
+                
+                // Automatically check files
+                await checkFiles();
             }
         }
-        
+
         // Load the WASM chat when the page is ready
-        document.addEventListener('DOMContentLoaded', loadWasmChat);
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Set up debug buttons
+            document.getElementById('check-files-btn').addEventListener('click', checkFiles);
+            document.getElementById('reload-btn').addEventListener('click', () => location.reload());
+            
+            // Load WASM module
+            await loadWasmChat();
+        });
     </script>
 </body>
 </html>

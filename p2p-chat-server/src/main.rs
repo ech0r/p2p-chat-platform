@@ -1,12 +1,13 @@
 use std::net::IpAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::fs;
 
 use clap::Parser;
 use tokio::signal;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use turn_server::{TurnConfig, TurnServerManager};
 use web_server::{WebServerConfig, WebServerManager};
 
@@ -48,65 +49,135 @@ struct Cli {
     /// Path to static files directory (if not provided, embedded assets will be used)
     #[clap(long, env = "STATIC_DIR")]
     static_dir: Option<PathBuf>,
-}
-
-fn verify_embedded_assets() {
-    // Check for essential files
-    let index_html = Asset::get("index.html");
-    let js_file = Asset::get("assets/p2p_chat_wasm.js");
-    let wasm_file = Asset::get("assets/p2p_chat_wasm_bg.wasm");
-
-    let mut files: Vec<_> = Asset::iter().collect();
-    files.sort();
-    for file in &files {
-        let content = Asset::get(file).unwrap();
-        println!(" - {} ({} bytes)", file, content.data.len());
-    }
     
-    if index_html.is_none() {
-        tracing::warn!("Embedded index.html not found!");
-    } else {
-        tracing::info!("Found embedded index.html ({} bytes)", index_html.unwrap().data.len());
-    }
-    
-    if js_file.is_none() {
-        tracing::warn!("Embedded JS file not found!");
-    } else {
-        tracing::info!("Found embedded JS file ({} bytes)", js_file.unwrap().data.len());
-    }
-    
-    if wasm_file.is_none() {
-        tracing::warn!("Embedded WASM file not found!");
-    } else {
-        tracing::info!("Found embedded WASM file ({} bytes)", wasm_file.unwrap().data.len());
-    }
+    /// Enable debug output
+    #[clap(long, env = "DEBUG", action = clap::ArgAction::SetTrue)]
+    debug: bool,
 }
 
 // Use rust-embed to embed the static assets in the binary
 #[derive(rust_embed::RustEmbed)]
 #[folder = "static/"]
+#[include = "*.html"]
+#[include = "assets/*"]
 struct Asset;
+
+fn verify_embedded_assets() -> bool {
+    // Check for essential files
+    let index_html = Asset::get("index.html");
+    let js_file = Asset::get("assets/p2p_chat_wasm.js");
+    let wasm_file = Asset::get("assets/p2p_chat_wasm_bg.wasm");
+
+    info!("Embedded assets found:");
+    let mut files: Vec<_> = Asset::iter().collect();
+    files.sort();
+    
+    for file in files {
+        let content = Asset::get(&file).unwrap();
+        info!(" - {} ({} bytes)", file, content.data.len());
+    }
+    
+    let mut all_files_present = true;
+    
+    if index_html.is_none() {
+        warn!("Embedded index.html not found!");
+        all_files_present = false;
+    } else {
+        info!("Found embedded index.html ({} bytes)", index_html.unwrap().data.len());
+    }
+    
+    if js_file.is_none() {
+        warn!("Embedded JS file not found!");
+        all_files_present = false;
+    } else {
+        info!("Found embedded JS file ({} bytes)", js_file.unwrap().data.len());
+    }
+    
+    if wasm_file.is_none() {
+        warn!("Embedded WASM file not found!");
+        all_files_present = false;
+    } else {
+        info!("Found embedded WASM file ({} bytes)", wasm_file.unwrap().data.len());
+    }
+    
+    all_files_present
+}
+
+fn check_static_files(static_dir: &Option<PathBuf>) -> bool {
+    if let Some(dir) = static_dir {
+        info!("Checking static files in {}", dir.display());
+        
+        let index_path = dir.join("index.html");
+        let assets_dir = dir.join("assets");
+        let js_path = assets_dir.join("p2p_chat_wasm.js");
+        let wasm_path = assets_dir.join("p2p_chat_wasm_bg.wasm");
+        
+        let mut all_files_present = true;
+        
+        if !index_path.exists() {
+            warn!("Static index.html not found at {}", index_path.display());
+            all_files_present = false;
+        } else {
+            if let Ok(meta) = fs::metadata(&index_path) {
+                info!("Found static index.html ({} bytes)", meta.len());
+            }
+        }
+        
+        if !js_path.exists() {
+            warn!("Static JS file not found at {}", js_path.display());
+            all_files_present = false;
+        } else {
+            if let Ok(meta) = fs::metadata(&js_path) {
+                info!("Found static JS file ({} bytes)", meta.len());
+            }
+        }
+        
+        if !wasm_path.exists() {
+            warn!("Static WASM file not found at {}", wasm_path.display());
+            all_files_present = false;
+        } else {
+            if let Ok(meta) = fs::metadata(&wasm_path) {
+                info!("Found static WASM file ({} bytes)", meta.len());
+            }
+        }
+        
+        return all_files_present;
+    }
+    
+    // No static directory specified
+    false
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Verify embedded assets
-    verify_embedded_assets();
-
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+    // Parse command-line arguments
+    let args = Cli::parse();
+    
+    // Initialize tracing with the appropriate level
+    let filter_level = if args.debug { "debug" } else { "info" };
+    tracing_subscriber::fmt()
+        .with_env_filter(format!("p2p_chat_server={},turn_server={},web_server={}", filter_level, filter_level, filter_level))
+        .init();
     
     // Load environment variables from .env file if present
     dotenv::dotenv().ok();
     
-    // Parse command-line arguments
-    let args = Cli::parse();
+    // Check static files or embedded assets
+    let using_static_files = check_static_files(&args.static_dir);
+    let using_embedded_assets = verify_embedded_assets();
+    
+    if !using_static_files && !using_embedded_assets {
+        error!("Neither static files nor embedded assets are available!");
+        error!("Please run 'make build-wasm' to compile the WebAssembly module or specify a valid static directory.");
+        return Err(anyhow::anyhow!("No static assets available"));
+    }
     
     // Configure the TURN server
     let turn_config = TurnConfig {
         public_ip: args.turn_public_ip,
         port: args.turn_port,
-        realm: args.turn_realm,
-        users: vec![(args.turn_username, args.turn_password)],
+        realm: args.turn_realm.clone(),
+        users: vec![(args.turn_username.clone(), args.turn_password.clone())],
     };
     
     // Create a TURN server manager
@@ -115,13 +186,30 @@ async fn main() -> anyhow::Result<()> {
     // Get TURN server connection details
     let turn_details = turn_manager.get_connection_details();
     
+    // Print server details
+    info!("TURN server details:");
+    info!("  Public IP: {}", args.turn_public_ip);
+    info!("  Port: {}", args.turn_port);
+    info!("  Realm: {}", args.turn_realm);
+    info!("  Username: {}", args.turn_username);
+    info!("  Password: {}", if args.turn_password.len() > 0 { "****" } else { "empty" });
+    
     // Configure the web server
     let web_config = WebServerConfig {
         bind_ip: args.web_bind_ip,
         port: args.web_port,
-        static_dir: args.static_dir,  // This can be None to use embedded assets
+        static_dir: args.static_dir.clone(),  // This can be None to use embedded assets
         turn_details: Some(turn_details),
     };
+    
+    info!("Web server details:");
+    info!("  Bind IP: {}", args.web_bind_ip);
+    info!("  Port: {}", args.web_port);
+    if let Some(path) = &args.static_dir {
+        info!("  Static files directory: {}", path.display());
+    } else {
+        info!("  Using embedded static files");
+    }
     
     // Create a web server manager
     let mut web_manager = WebServerManager::new(web_config);
@@ -160,6 +248,16 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     });
+    
+    // Print service URLs
+    info!("");
+    info!("======================================================");
+    info!("Server started successfully!");
+    info!("Web interface: http://{}:{}", args.web_bind_ip, args.web_port);
+    info!("TURN server: {}:{}", args.turn_public_ip, args.turn_port);
+    info!("======================================================");
+    info!("");
+    info!("Press Ctrl+C to stop the server");
     
     // Wait for shutdown signal
     shutdown_rx.recv().await;

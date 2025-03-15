@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.34", features = ["full"] }
-axum = "0.7"
+axum = { version = "0.7", features = ["ws"] }  # Added ws feature
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "fs", "trace"] }
 tracing = "0.1"
@@ -19,3 +19,5 @@ include_dir = "0.7"
 rust-embed = { version = "8.0", features = ["include-exclude"] }
 mime_guess = "2.0"
 turn-server = { path = "../turn-server" }
+uuid = { version = "1.4", features = ["v4", "serde"] }  # Added uuid dependency
+futures-util = "0.3"  # For WebSocket handling
