@@ -50,6 +50,38 @@ struct Cli {
     static_dir: Option<PathBuf>,
 }
 
+fn verify_embedded_assets() {
+    // Check for essential files
+    let index_html = Asset::get("index.html");
+    let js_file = Asset::get("assets/p2p_chat_wasm.js");
+    let wasm_file = Asset::get("assets/p2p_chat_wasm_bg.wasm");
+
+    let mut files: Vec<_> = Asset::iter().collect();
+    files.sort();
+    for file in &files {
+        let content = Asset::get(file).unwrap();
+        println!(" - {} ({} bytes)", file, content.data.len());
+    }
+    
+    if index_html.is_none() {
+        tracing::warn!("Embedded index.html not found!");
+    } else {
+        tracing::info!("Found embedded index.html ({} bytes)", index_html.unwrap().data.len());
+    }
+    
+    if js_file.is_none() {
+        tracing::warn!("Embedded JS file not found!");
+    } else {
+        tracing::info!("Found embedded JS file ({} bytes)", js_file.unwrap().data.len());
+    }
+    
+    if wasm_file.is_none() {
+        tracing::warn!("Embedded WASM file not found!");
+    } else {
+        tracing::info!("Found embedded WASM file ({} bytes)", wasm_file.unwrap().data.len());
+    }
+}
+
 // Use rust-embed to embed the static assets in the binary
 #[derive(rust_embed::RustEmbed)]
 #[folder = "static/"]
@@ -57,6 +89,9 @@ struct Asset;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Verify embedded assets
+    verify_embedded_assets();
+
     // Initialize tracing
     tracing_subscriber::fmt::init();
     
