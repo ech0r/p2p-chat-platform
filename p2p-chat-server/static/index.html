@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Encrypted Chat</title>
+    <style>
+        /* General styles */
+        :root {
+            --primary-color: #4a6ee0;
+            --secondary-color: #6c8ff8;
+            --text-color: #333;
+            --background-color: #f5f5f5;
+            --container-bg: #ffffff;
+            --border-color: #e0e0e0;
+            --sent-message-bg: #4a6ee0;
+            --sent-message-color: white;
+            --received-message-bg: #e9e9eb;
+            --received-message-color: #333;
+            --button-hover: #3a5bc0;
+            --danger-color: #e74c3c;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+        }
+
+        /* Dark mode if preferred */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary-color: #5d7ce9;
+                --secondary-color: #7894fa;
+                --text-color: #e0e0e0;
+                --background-color: #121212;
+                --container-bg: #1e1e1e;
+                --border-color: #333;
+                --sent-message-bg: #5d7ce9;
+                --sent-message-color: white;
+                --received-message-bg: #2a2a2a;
+                --received-message-color: #e0e0e0;
+                --button-hover: #4a65c0;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            background-color: var(--container-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .server-info {
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-color);
+            opacity: 0.7;
+            margin-top: 0;
+            margin-bottom: 25px;
+        }
+
+        /* Tab styling */
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            transition: background-color 0.2s;
+        }
+
+        .tab:not(:last-child) {
+            border-right: none;
+        }
+
+        .tab.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Connection info */
+        .connection-info {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.02);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+
+        .connection-info h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+
+        /* Messages */
+        .messages {
+            height: 300px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            background-color: rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message {
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            border-radius: 18px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .message.received {
+            background-color: var(--received-message-bg);
+            color: var(--received-message-color);
+            align-self: flex-start;
+        }
+
+        .message.sent {
+            background-color: var(--sent-message-bg);
+            color: var(--sent-message-color);
+            align-self: flex-end;
+            margin-left: auto;
+        }
+
+        /* Input area */
+        .input-area {
+            display: flex;
+        }
+
+        #message-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-right: 10px;
+            background-color: var(--container-bg);
+            color: var(--text-color);
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--button-hover);
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .copy-button {
+            margin-left: 5px;
+            padding: 5px 10px;
+            font-size: 0.8em;
+        }
+
+        /* Status */
+        .status {
+            text-align: center;
+            margin: 10px 0;
+            font-style: italic;
+            color: var(--text-color);
+            opacity: 0.7;
+        }
+
+        .success {
+            color: var(--success-color);
+        }
+
+        .warning {
+            color: var(--warning-color);
+        }
+
+        .error {
+            color: var(--danger-color);
+        }
+
+        /* Textarea */
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-family: monospace;
+            background-color: var(--container-bg);
+            color: var(--text-color);
+            resize: vertical;
+        }
+
+        /* Footer */
+        footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.8em;
+            color: var(--text-color);
+            opacity: 0.7;
+        }
+
+        footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+            
+            .connection-info {
+                padding: 10px;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .message {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>P2P Encrypted Chat</h1>
+        <p class="server-info">Running on: <span id="server-name">localhost</span></p>
+        
+        <div class="tabs">
+            <div class="tab active" id="tab-chat">Chat</div>
+            <div class="tab" id="tab-connect">Connect</div>
+            <div class="tab" id="tab-debug">Debug</div>
+        </div>
+        
+        <div class="tab-content active" id="content-chat">
+            <div class="status" id="connection-status">Not connected</div>
+            <div class="messages" id="messages"></div>
+            <div class="input-area">
+                <input type="text" id="message-input" placeholder="Type your message..." disabled>
+                <button id="send-button" disabled>Send</button>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="content-connect">
+            <div class="connection-info">
+                <h3>Create New Connection</h3>
+                <button id="create-offer-button">Create Connection Offer</button>
+                <div id="offer-area" style="display: none; margin-top: 15px;">
+                    <p>Share this connection offer with your friend:</p>
+                    <textarea id="offer-sdp" rows="5" readonly></textarea>
+                    <button id="copy-offer-button" class="copy-button">Copy</button>
+                    
+                    <p style="margin-top: 15px;">Enter friend's answer:</p>
+                    <textarea id="answer-sdp" rows="5" placeholder="Paste your friend's answer here..."></textarea>
+                    <button id="complete-connection-button">Complete Connection</button>
+                </div>
+            </div>
+            
+            <div class="connection-info">
+                <h3>Join Existing Connection</h3>
+                <p>Paste your friend's connection offer:</p>
+                <textarea id="remote-offer-sdp" rows="5" placeholder="Paste connection offer here..."></textarea>
+                <button id="accept-offer-button">Join Connection</button>
+                <div id="answer-area" style="display: none; margin-top: 15px;">
+                    <p>Share this answer with your friend:</p>
+                    <textarea id="local-answer-sdp" rows="5" readonly></textarea>
+                    <button id="copy-answer-button" class="copy-button">Copy</button>
+                </div>
+            </div>
+            
+            <div class="connection-info">
+                <h3>Encryption Key</h3>
+                <p>Encryption key is automatically generated, but you can set a custom one if both parties agree on it.</p>
+                <textarea id="encryption-key" rows="2" placeholder="Enter custom encryption key (base64)"></textarea>
+                <button id="set-key-button">Set Key</button>
+                <button id="generate-key-button">Generate New Key</button>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="content-debug">
+            <div class="connection-info">
+                <h3>Connection Troubleshooting</h3>
+                <p>If you're having trouble connecting:</p>
+                <ol>
+                    <li>Make sure both devices are on the same network if possible</li>
+                    <li>Try using a mobile network instead of corporate/university networks</li>
+                    <li>Ensure your firewall isn't blocking WebRTC connections</li>
+                    <li>Check if the browser console shows any WebRTC errors</li>
+                </ol>
+                
+                <div style="margin-top: 20px;">
+                    <h4>Connection Status</h4>
+                    <p>Signaling State: <span id="debug-signaling-state">Unknown</span></p>
+                    <p>ICE Connection State: <span id="debug-ice-state">Unknown</span></p>
+                    <p>Gathering State: <span id="debug-gathering-state">Unknown</span></p>
+                    <p>Data Channel State: <span id="debug-datachannel-state">Unknown</span></p>
+                    
+                    <button id="refresh-debug-button">Refresh Status</button>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <h4>STUN/TURN Server Information</h4>
+                    <p>Using fallback public TURN servers:</p>
+                    <ul>
+                        <li>turn:relay.metered.ca:80</li>
+                        <li>turn:relay.metered.ca:443?transport=tcp</li>
+                    </ul>
+                    <p>Username: openrelayproject</p>
+                    <p>Password: openrelayproject</p>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>P2P Encrypted Chat · <a href="https://coyote.technology" target="_blank">coyote.technology</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // WebRTC connection management functions
+        class P2PChat {
+            constructor() {
+                console.log("Initializing P2P Chat...");
+
+                // Configure ICE servers (STUN/TURN)
+                const rtcConfig = {
+                    iceServers: [
+                        {
+                            urls: "stun:stun.l.google.com:19302"
+                        },
+                        {
+                            urls: "turn:relay.metered.ca:80",
+                            username: "openrelayproject",
+                            credential: "openrelayproject"
+                        },
+                        {
+                            urls: "turn:relay.metered.ca:443?transport=tcp",
+                            username: "openrelayproject",
+                            credential: "openrelayproject"
+                        }
+                    ],
+                    iceCandidatePoolSize: 10
+                };
+
+                // Create peer connection
+                this.peerConnection = new RTCPeerConnection(rtcConfig);
+                
+                // Set up event handlers for ICE candidates
+                this.peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        this.handleIceCandidate(event.candidate);
+                    }
+                };
+                
+                // Set up data channel
+                this.dataChannel = null;
+                this.onMessageCallback = null;
+                this.onConnectionCallback = null;
+                
+                // Generate a random encryption key
+                this.encryptionKey = this.generateRandomKey();
+            }
+            
+            // Set callback for incoming messages
+            onMessage(callback) {
+                this.onMessageCallback = callback;
+            }
+            
+            // Set callback for connection status
+            onConnection(callback) {
+                this.onConnectionCallback = callback;
+                
+                // Set up ICE connection state change
+                this.peerConnection.oniceconnectionstatechange = () => {
+                    const state = this.peerConnection.iceConnectionState;
+                    console.log("ICE connection state changed to:", state);
+                    
+                    if (state === "connected" || state === "completed") {
+                        callback("connected");
+                    } else if (state === "disconnected") {
+                        callback("disconnected");
+                    } else if (state === "failed") {
+                        callback("failed");
+                    }
+                };
+            }
+            
+            // Create offer as initiator
+            async createOffer() {
+                console.log("Creating offer...");
+                
+                // Create data channel
+                this.dataChannel = this.peerConnection.createDataChannel("chat");
+                this.setupDataChannel(this.dataChannel);
+                
+                // Create offer
+                const offer = await this.peerConnection.createOffer();
+                await this.peerConnection.setLocalDescription(offer);
+                
+                // Return the offer as a serializable object
+                return {
+                    sdp: this.peerConnection.localDescription.sdp,
+                    type_: this.peerConnection.localDescription.type
+                };
+            }
+            
+            // Accept offer as peer
+            async acceptOffer(offerData) {
+                console.log("Accepting offer...");
+                
+                // Set up data channel event handler
+                this.peerConnection.ondatachannel = (event) => {
+                    console.log("Data channel received");
+                    this.dataChannel = event.channel;
+                    this.setupDataChannel(this.dataChannel);
+                    
+                    if (this.onConnectionCallback) {
+                        this.onConnectionCallback("channel_received");
+                    }
+                };
+                
+                // Create and set remote description from offer
+                const offerDescription = new RTCSessionDescription({
+                    type: "offer",
+                    sdp: offerData.sdp
+                });
+                
+                await this.peerConnection.setRemoteDescription(offerDescription);
+                
+                // Create answer
+                const answer = await this.peerConnection.createAnswer();
+                await this.peerConnection.setLocalDescription(answer);
+                
+                // Return the answer as a serializable object
+                return {
+                    sdp: this.peerConnection.localDescription.sdp,
+                    type_: this.peerConnection.localDescription.type
+                };
+            }
+            
+            // Complete connection with answer from peer
+            async completeConnection(answerData) {
+                console.log("Completing connection...");
+                
+                const currentState = this.peerConnection.signalingState;
+                console.log("Current signaling state:", currentState);
+                
+                // Only set remote description if we're in the right state
+                if (currentState !== "stable") {
+                    // Create and set remote description from answer
+                    const answerDescription = new RTCSessionDescription({
+                        type: "answer",
+                        sdp: answerData.sdp
+                    });
+                    
+                    await this.peerConnection.setRemoteDescription(answerDescription);
+                } else {
+                    console.log("Connection is already established");
+                }
+            }
+            
+            // Add ICE candidate received from peer
+            async addIceCandidate(candidateData) {
+                const candidate = new RTCIceCandidate({
+                    candidate: candidateData.candidate,
+                    sdpMid: candidateData.sdp_mid,
+                    sdpMLineIndex: candidateData.sdp_m_line_index
+                });
+                
+                try {
+                    await this.peerConnection.addIceCandidate(candidate);
+                } catch (e) {
+                    console.error("Error adding ICE candidate:", e);
+                }
+            }
+            
+            // Send encrypted message
+            sendMessage(message) {
+                if (this.dataChannel && this.dataChannel.readyState === "open") {
+                    // Encrypt the message
+                    const encryptedMessage = this.encryptMessage(message);
+                    
+                    // Send through data channel
+                    this.dataChannel.send(JSON.stringify(encryptedMessage));
+                    return true;
+                } else {
+                    console.error("Data channel not open");
+                    return false;
+                }
+            }
+            
+            // Set encryption key from string (base64-encoded)
+            setEncryptionKey(keyBase64) {
+                try {
+                    const keyBytes = this.base64ToArrayBuffer(keyBase64);
+                    
+                    if (keyBytes.byteLength !== 32) {
+                        throw new Error("Invalid key length, must be 32 bytes");
+                    }
+                    
+                    this.encryptionKey = keyBytes;
+                    return true;
+                } catch (e) {
+                    console.error("Error setting encryption key:", e);
+                    return false;
+                }
+            }
+            
+            // Get current encryption key as base64
+            getEncryptionKey() {
+                return this.arrayBufferToBase64(this.encryptionKey);
+            }
+            
+            // Get connection state
+            getConnectionState() {
+                return this.peerConnection.signalingState;
+            }
+            
+            // Get ICE connection state
+            getIceConnectionState() {
+                return this.peerConnection.iceConnectionState;
+            }
+            
+            // Get ICE gathering state
+            getIceGatheringState() {
+                return this.peerConnection.iceGatheringState;
+            }
+            
+            // Handle ICE candidate
+            handleIceCandidate(candidate) {
+                if (this.onConnectionCallback) {
+                    // Extract needed properties
+                    const candidateData = {
+                        candidate: candidate.candidate,
+                        sdp_mid: candidate.sdpMid,
+                        sdp_m_line_index: candidate.sdpMLineIndex,
+                        username_fragment: candidate.usernameFragment
+                    };
+                    
+                    // Notify about the new ICE candidate
+                    this.onConnectionCallback("ice_candidate", JSON.stringify(candidateData));
+                }
+            }
+            
+            // Setup data channel
+            setupDataChannel(channel) {
+                channel.onmessage = (event) => {
+                    try {
+                        // Parse the message
+                        const messageData = JSON.parse(event.data);
+                        
+                        // Decrypt the message
+                        const decryptedMessage = this.decryptMessage(messageData);
+                        
+                        // Call the message callback
+                        if (this.onMessageCallback) {
+                            this.onMessageCallback(decryptedMessage);
+                        }
+                    } catch (e) {
+                        console.error("Error processing message:", e);
+                    }
+                };
+                
+                channel.onopen = () => {
+                    console.log("Data channel opened");
+                    if (this.onConnectionCallback) {
+                        this.onConnectionCallback("open");
+                    }
+                };
+                
+                channel.onclose = () => {
+                    console.log("Data channel closed");
+                    if (this.onConnectionCallback) {
+                        this.onConnectionCallback("closed");
+                    }
+                };
+            }
+            
+            // Generate a random encryption key (32 bytes)
+            generateRandomKey() {
+                const array = new Uint8Array(32);
+                window.crypto.getRandomValues(array);
+                return array.buffer;
+            }
+            
+            // Encrypt a message using the encryption key
+            encryptMessage(message) {
+                try {
+                    // In a real implementation, this would use Web Crypto API
+                    // For this demo, we'll use a simple XOR "encryption"
+                    const msgBytes = new TextEncoder().encode(message);
+                    const keyBytes = new Uint8Array(this.encryptionKey);
+                    const result = new Uint8Array(msgBytes.length);
+                    
+                    // Simple XOR encryption (NOT SECURE - FOR DEMO ONLY)
+                    for (let i = 0; i < msgBytes.length; i++) {
+                        result[i] = msgBytes[i] ^ keyBytes[i % keyBytes.length];
+                    }
+                    
+                    // Generate a random nonce (12 bytes)
+                    const nonce = new Uint8Array(12);
+                    window.crypto.getRandomValues(nonce);
+                    
+                    // Return encrypted message with nonce
+                    return {
+                        nonce: this.arrayBufferToBase64(nonce),
+                        ciphertext: this.arrayBufferToBase64(result)
+                    };
+                } catch (e) {
+                    console.error("Encryption error:", e);
+                    throw e;
+                }
+            }
+            
+            // Decrypt a message using the encryption key
+            decryptMessage(encryptedMessage) {
+                try {
+                    // Get nonce and ciphertext
+                    const nonce = this.base64ToArrayBuffer(encryptedMessage.nonce);
+                    const ciphertext = this.base64ToArrayBuffer(encryptedMessage.ciphertext);
+                    
+                    // In a real implementation, this would use Web Crypto API
+                    // For this demo, we'll use the same simple XOR "encryption"
+                    const keyBytes = new Uint8Array(this.encryptionKey);
+                    const encBytes = new Uint8Array(ciphertext);
+                    const result = new Uint8Array(encBytes.length);
+                    
+                    // Simple XOR decryption (NOT SECURE - FOR DEMO ONLY)
+                    for (let i = 0; i < encBytes.length; i++) {
+                        result[i] = encBytes[i] ^ keyBytes[i % keyBytes.length];
+                    }
+                    
+                    // Convert back to string
+                    return new TextDecoder().decode(result);
+                } catch (e) {
+                    console.error("Decryption error:", e);
+                    throw e;
+                }
+            }
+            
+            // Convert ArrayBuffer to Base64 string
+            arrayBufferToBase64(buffer) {
+                const bytes = new Uint8Array(buffer);
+                let binary = '';
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return btoa(binary);
+            }
+            
+            // Convert Base64 string to ArrayBuffer
+            base64ToArrayBuffer(base64) {
+                const binaryString = atob(base64);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                return bytes.buffer;
+            }
+        }
+
+        // Initialize P2P Chat application
+        async function initializeChat() {
+            // Elements
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const messagesDiv = document.getElementById('messages');
+            const connectionStatus = document.getElementById('connection-status');
+            
+            // Connection elements
+            const createOfferButton = document.getElementById('create-offer-button');
+            const offerArea = document.getElementById('offer-area');
+            const offerSdp = document.getElementById('offer-sdp');
+            const copyOfferButton = document.getElementById('copy-offer-button');
+            const answerSdp = document.getElementById('answer-sdp');
+            const completeConnectionButton = document.getElementById('complete-connection-button');
+            
+            const remoteOfferSdp = document.getElementById('remote-offer-sdp');
+            const acceptOfferButton = document.getElementById('accept-offer-button');
+            const answerArea = document.getElementById('answer-area');
+            const localAnswerSdp = document.getElementById('local-answer-sdp');
+            const copyAnswerButton = document.getElementById('copy-answer-button');
+            
+            const encryptionKeyInput = document.getElementById('encryption-key');
+            const setKeyButton = document.getElementById('set-key-button');
+            const generateKeyButton = document.getElementById('generate-key-button');
+            
+            // Debug elements
+            const refreshDebugButton = document.getElementById('refresh-debug-button');
+            const debugSignalingState = document.getElementById('debug-signaling-state');
+            const debugIceState = document.getElementById('debug-ice-state');
+            const debugGatheringState = document.getElementById('debug-gathering-state');
+            const debugDatachannelState = document.getElementById('debug-datachannel-state');
+            
+            // Tab navigation
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(c => c.classList.remove('active'));
+                    
+                    tab.classList.add('active');
+                    const contentId = 'content-' + tab.id.split('-')[1];
+                    document.getElementById(contentId).classList.add('active');
+                    
+                    // If switching to debug tab, refresh the debug info
+                    if (tab.id === 'tab-debug') {
+                        refreshDebugInfo();
+                    }
+                });
+            });
+            
+            // Initialize chat
+            let chat;
+            try {
+                chat = new P2PChat();
+                console.log("Chat initialized with key:", chat.getEncryptionKey());
+                encryptionKeyInput.value = chat.getEncryptionKey();
+                connectionStatus.textContent = "Initialized, not connected";
+                
+                // Store the chat instance globally for debugging
+                window.chatInstance = chat;
+            } catch (error) {
+                console.error("Failed to initialize chat:", error);
+                connectionStatus.textContent = "Failed to initialize: " + error.message;
+                connectionStatus.className = "status error";
+                return;
+            }
+            
+            // Set up message handler
+            chat.onMessage(message => {
+                addMessage(message, false);
+            });
+            
+            // Set up connection handler
+            chat.onConnection(async (status, ...args) => {
+                if (status === 'open' || status === 'connected') {
+                    connectionStatus.textContent = "Connected";
+                    connectionStatus.className = "status success";
+                    messageInput.disabled = false;
+                    sendButton.disabled = false;
+                    
+                    // Switch to chat tab
+                    document.getElementById('tab-chat').click();
+                } else if (status === 'closed' || status === 'disconnected' || status === 'failed') {
+                    connectionStatus.textContent = status === 'failed' ? 
+                        "Connection failed. Try a different network." : "Disconnected";
+                    connectionStatus.className = status === 'failed' ? "status error" : "status warning";
+                    messageInput.disabled = true;
+                    sendButton.disabled = true;
+                } else if (status === 'ice_candidate') {
+                    // Handle ICE candidate
+                    if (args[0]) {
+                        const candidateJson = args[0];
+                        handleNewIceCandidate(candidateJson);
+                    }
+                } else if (status === 'channel_received') {
+                    console.log("Data channel received from peer");
+                    
+                    // If we have the data channel, enable the UI
+                    if (chat.dataChannel) {
+                        console.log("Data channel available");
+                        // Enable message sending UI
+                        messageInput.disabled = false;
+                        sendButton.disabled = false;
+                        connectionStatus.textContent = "Connected via data channel";
+                        connectionStatus.className = "status success";
+                        
+                        // Switch to chat tab
+                        document.getElementById('tab-chat').click();
+                    }
+                }
+                
+                // Update debug info if available
+                refreshDebugInfo();
+            });
+            
+            // Function to store pending ICE candidates
+            const pendingIceCandidates = [];
+            
+            // Handle new ICE candidate
+            function handleNewIceCandidate(candidateJson) {
+                try {
+                    // Parse the candidate JSON string
+                    const candidate = JSON.parse(candidateJson);
+                    // Store candidates until we can add them
+                    pendingIceCandidates.push(candidate);
+                } catch (error) {
+                    console.error("Error parsing ICE candidate:", error);
+                }
+            }
+            
+            // Function to add all pending ICE candidates
+            async function addPendingIceCandidates() {
+                for (const candidate of pendingIceCandidates) {
+                    try {
+                        await chat.addIceCandidate(candidate);
+                    } catch (error) {
+                        console.error("Error adding ICE candidate:", error);
+                    }
+                }
+                pendingIceCandidates.length = 0; // Clear the array
+            }
+            
+            // Debug functions
+            function refreshDebugInfo() {
+                try {
+                    if (window.chatInstance) {
+                        // Get connection states
+                        const signalingState = window.chatInstance.getConnectionState() || "Unknown";
+                        debugSignalingState.textContent = signalingState;
+                        
+                        const iceState = window.chatInstance.getIceConnectionState() || "Unknown";
+                        debugIceState.textContent = iceState;
+                        
+                        const gatheringState = window.chatInstance.getIceGatheringState() || "Unknown";
+                        debugGatheringState.textContent = gatheringState;
+                        
+                        // Set appropriate classes
+                        setStateClass(debugSignalingState, signalingState);
+                        setStateClass(debugIceState, iceState);
+                        setStateClass(debugGatheringState, gatheringState);
+                        
+                        // Update data channel state
+                        if (window.chatInstance.dataChannel) {
+                            const channelState = window.chatInstance.dataChannel.readyState || "Unknown";
+                            debugDatachannelState.textContent = channelState;
+                            setStateClass(debugDatachannelState, channelState);
+                        } else {
+                            debugDatachannelState.textContent = "Not created";
+                            debugDatachannelState.className = "";
+                        }
+                    } else {
+                        console.warn("No chat instance available for debug");
+                    }
+                } catch (e) {
+                    console.error("Error refreshing debug info:", e);
+                }
+            }
+            
+            // Helper to set state classes
+            function setStateClass(element, state) {
+                element.className = "";
+                const stateStr = state.toLowerCase();
+                
+                if (stateStr.includes("connected") || stateStr === "stable" || 
+                    stateStr === "open" || stateStr === "completed") {
+                    element.className = "success";
+                } else if (stateStr.includes("disconnected") || stateStr.includes("checking") || 
+                           stateStr.includes("have-local") || stateStr.includes("have-remote") || 
+                           stateStr.includes("gathering")) {
+                    element.className = "warning";
+                } else if (stateStr.includes("failed") || stateStr === "closed") {
+                    element.className = "error";
+                }
+            }
+            
+            // Refresh debug info button
+            if (refreshDebugButton) {
+                refreshDebugButton.addEventListener('click', refreshDebugInfo);
+            }
+            
+            // Set up a timer to refresh debug info periodically
+            setInterval(refreshDebugInfo, 5000);
+            
+            // Create offer
+            createOfferButton.addEventListener('click', async () => {
+                try {
+                    // Check connection state first
+                    const state = chat.getConnectionState();
+                    console.log("Current connection state before creating offer:", state);
+                    
+                    if (state !== "stable" && state !== "new") {
+                        connectionStatus.textContent = "Cannot create offer in current state: " + state;
+                        connectionStatus.className = "status warning";
+                        return;
+                    }
+                    
+                    connectionStatus.textContent = "Creating offer...";
+                    connectionStatus.className = "status";
+                    const offer = await chat.createOffer();
+                    offerSdp.value = JSON.stringify(offer);
+                    offerArea.style.display = 'block';
+                    connectionStatus.textContent = "Offer created, waiting for answer...";
+                    
+                    // Disable create button to prevent multiple offers
+                    createOfferButton.disabled = true;
+                    setTimeout(() => {
+                        createOfferButton.disabled = false;
+                    }, 5000); // Re-enable after 5 seconds
+                } catch (error) {
+                    console.error("Error creating offer:", error);
+                    connectionStatus.textContent = "Error creating offer: " + error.message;
+                    connectionStatus.className = "status error";
+                }
+            });
+            
+            // Copy offer to clipboard
+            copyOfferButton.addEventListener('click', () => {
+                offerSdp.select();
+                navigator.clipboard.writeText(offerSdp.value);
+                copyOfferButton.textContent = "Copied!";
+                setTimeout(() => {
+                    copyOfferButton.textContent = "Copy";
+                }, 2000);
+            });
+            
+            // Complete connection with answer
+            completeConnectionButton.addEventListener('click', async () => {
+                try {
+                    // Check if we already have connection details from the negotiation
+                    const connectionState = chat.getConnectionState();
+                    console.log("Current connection state:", connectionState);
+                    
+                    // Only proceed if we're in the right state
+                    if (connectionState === "stable") {
+                        connectionStatus.textContent = "Connection is already established!";
+                        connectionStatus.className = "status success";
+                        return;
+                    }
+                    
+                    connectionStatus.textContent = "Completing connection...";
+                    connectionStatus.className = "status";
+                    const answer = JSON.parse(answerSdp.value);
+                    await chat.completeConnection(answer);
+                    connectionStatus.textContent = "Connection established, waiting for data channel...";
+                    await addPendingIceCandidates();
+                } catch (error) {
+                    console.error("Error completing connection:", error);
+                    if (error.message && error.message.includes("stable")) {
+                        connectionStatus.textContent = "Connection is already established. Try sending a message.";
+                        connectionStatus.className = "status success";
+                    } else {
+                        connectionStatus.textContent = "Error completing connection: " + error.message;
+                        connectionStatus.className = "status error";
+                    }
+                }
+            });
+            
+            // Accept offer
+            acceptOfferButton.addEventListener('click', async () => {
+                try {
+                    // Check if we have a valid offer
+                    if (!remoteOfferSdp.value || remoteOfferSdp.value.trim() === '') {
+                        connectionStatus.textContent = "Please paste a connection offer first";
+                        connectionStatus.className = "status warning";
+                        return;
+                    }
+                    
+                    // Check connection state
+                    const state = chat.getConnectionState();
+                    console.log("Current connection state before accepting offer:", state);
+                    
+                    if (state !== "stable" && state !== "new") {
+                        connectionStatus.textContent = "Cannot accept offer in current state: " + state;
+                        connectionStatus.className = "status warning";
+                        return;
+                    }
+                    
+                    connectionStatus.textContent = "Accepting offer...";
+                    connectionStatus.className = "status";
+                    
+                    // Try to parse the offer
+                    let offer;
+                    try {
+                        offer = JSON.parse(remoteOfferSdp.value);
+                    } catch (e) {
+                        connectionStatus.textContent = "Invalid offer format. Please paste a valid JSON offer.";
+                        connectionStatus.className = "status error";
+                        console.error("Error parsing offer:", e);
+                        return;
+                    }
+                    
+                    // Check if it has the required properties
+                    if (!offer.sdp || !offer.type_) {
+                        connectionStatus.textContent = "Invalid offer structure. Missing required fields.";
+                        connectionStatus.className = "status error";
+                        return;
+                    }
+                    
+                    const answer = await chat.acceptOffer(offer);
+                    localAnswerSdp.value = JSON.stringify(answer);
+                    answerArea.style.display = 'block';
+                    connectionStatus.textContent = "Offer accepted, share answer...";
+                    await addPendingIceCandidates();
+                    
+                    // Disable accept button to prevent multiple acceptances
+                    acceptOfferButton.disabled = true;
+                    setTimeout(() => {
+                        acceptOfferButton.disabled = false;
+                    }, 5000); // Re-enable after 5 seconds
+                } catch (error) {
+                    console.error("Error accepting offer:", error);
+                    connectionStatus.textContent = "Error accepting offer: " + error.message;
+                    connectionStatus.className = "status error";
+                }
+            });
+            
+            // Copy answer to clipboard
+            copyAnswerButton.addEventListener('click', () => {
+                localAnswerSdp.select();
+                navigator.clipboard.writeText(localAnswerSdp.value);
+                copyAnswerButton.textContent = "Copied!";
+                setTimeout(() => {
+                    copyAnswerButton.textContent = "Copy";
+                }, 2000);
+            });
+            
+            // Set custom encryption key
+            setKeyButton.addEventListener('click', () => {
+                try {
+                    const key = encryptionKeyInput.value.trim();
+                    if (key) {
+                        if (chat.setEncryptionKey(key)) {
+                            alert("Encryption key set successfully!");
+                        } else {
+                            alert("Failed to set encryption key. Make sure it's a valid base64-encoded 32-byte key.");
+                        }
+                    } else {
+                        alert("Please enter a valid encryption key.");
+                    }
+                } catch (error) {
+                    console.error("Error setting encryption key:", error);
+                    alert("Error setting encryption key: " + error.message);
+                }
+            });
+            
+            // Generate new encryption key
+            generateKeyButton.addEventListener('click', () => {
+                try {
+                    // Create a new random key
+                    const tempKey = new Uint8Array(32);
+                    window.crypto.getRandomValues(tempKey);
+                    const newKey = btoa(String.fromCharCode.apply(null, tempKey));
+                    
+                    encryptionKeyInput.value = newKey;
+                    
+                    // Set the key
+                    if (chat.setEncryptionKey(newKey)) {
+                        alert("New encryption key generated!");
+                    } else {
+                        alert("Failed to set the new encryption key.");
+                    }
+                } catch (error) {
+                    console.error("Error generating encryption key:", error);
+                    alert("Error generating encryption key: " + error.message);
+                }
+            });
+            
+            // Send message
+            function sendMessage() {
+                const message = messageInput.value.trim();
+                if (message) {
+                    try {
+                        if (chat.sendMessage(message)) {
+                            addMessage(message, true);
+                            messageInput.value = '';
+                        } else {
+                            alert("Could not send message. Make sure you're connected.");
+                        }
+                    } catch (error) {
+                        console.error("Error sending message:", error);
+                        alert("Error sending message: " + error.message);
+                    }
+                }
+            }
+            
+            // Send button click handler
+            sendButton.addEventListener('click', sendMessage);
+            
+            // Enter key handler
+            messageInput.addEventListener('keypress', event => {
+                if (event.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            // Function to add message to the UI
+            function addMessage(text, isSent) {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message');
+                messageDiv.classList.add(isSent ? 'sent' : 'received');
+                messageDiv.textContent = text;
+                
+                messagesDiv.appendChild(messageDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+        }
+        
+        // Start the application
+        document.addEventListener('DOMContentLoaded', () => {
+            // Update server name
+            document.getElementById('server-name').textContent = window.location.hostname;
+            
+            // Initialize the chat application
+            initializeChat().catch(error => {
+                console.error("Initialization error:", error);
+                document.getElementById('connection-status').textContent = "Failed to initialize: " + error.message;
+                document.getElementById('connection-status').className = "status error";
+            });
+        });
+    </script>
+</body>
+</html>
